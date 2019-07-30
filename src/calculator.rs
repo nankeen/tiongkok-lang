@@ -3,6 +3,18 @@ use std::vec::Vec;
 // Runs with default radix 10
 // const RADIX: u32 = 10;
 
+/* Calculator interpreter
+ * ======================
+ * The interpreter is a finite state machine
+ * that uses tokens for transitioning.
+ * The grammar must be such:
+ * [number][operator][number][operator]....
+ *
+ * The lexer is also a finite state machine
+ * I'm really tired of looking at that mess
+ * It does not perform grammar checking
+ */
+
 #[derive(Debug, PartialEq)]
 pub enum Token {
     Integer(u32),
@@ -24,6 +36,7 @@ pub struct Interpreter {
 }
 
 impl Interpreter {
+    // Initializes a new interpreter with the start state
     pub fn new() -> Interpreter {
         Interpreter {
             state: InterpreterState::Start,
@@ -31,31 +44,32 @@ impl Interpreter {
         }
     }
 
+    // Resets interpreter internals
     pub fn reset(&mut self) {
         self.state = InterpreterState::Start;
         self.stack.clear();
     }
 
+    // Given a token (event), transition to a new state
     pub fn next(&mut self, event: &Token) -> InterpreterState {
         use InterpreterState::*;
+        // Match current state with handler functions
         match self.state {
             Start => self.handle_start(event),
-            Integer => self.handle_digit(event),
+            Integer => self.handle_integer(event),
             Add => self.handle_add(event),
             End => {
+                // Execution of expression ended, print the results
                 match self.stack.pop() {
                     Some(ret) => println!("{:?}", ret),
                     None => println!("nil"),
                 };
                 InterpreterState::End
             },
-            /*
-            Operator => self.handle_operator(event),
-            End => End,
-            */
         }
     }
 
+    // Start state allows transition to `Integer` and `End` state
     fn handle_start(&mut self, event: &Token) -> InterpreterState {
         use Token::*;
         match event {
@@ -68,7 +82,8 @@ impl Interpreter {
         }
     }
 
-    fn handle_digit(&mut self, event: &Token) -> InterpreterState {
+    // Integer state allows transition to `Add` and `End` state
+    fn handle_integer(&mut self, event: &Token) -> InterpreterState {
         use Token::*;
         match event {
             Operator(op) => match op {
@@ -80,6 +95,7 @@ impl Interpreter {
         }
     }
 
+    // Add state allows transition to `Integer` state
     fn handle_add(&mut self, event: &Token) -> InterpreterState {
         use Token::*;
         match event {
@@ -91,6 +107,8 @@ impl Interpreter {
             _ => panic!("Syntax error")
         }
     }
+
+    // TODO: Implement subtraction operator
 }
 
 enum LexerState {
@@ -115,6 +133,7 @@ impl Lexer<'_> {
     }
 
     pub fn next_token(&mut self) -> Token {
+        // TODO: Fix this crap, there must a better pattern
         use LexerState::*;
         loop {
             match self.iter.next() {
@@ -160,38 +179,6 @@ impl Lexer<'_> {
                     End => return Token::End,
                 }
             }
-            /*
-            if let Some(c) = self.iter.next() {
-                match self.state {
-                    Digit => match c {
-                        x if x.is_digit(10) => {
-                            self.stack.push(c);
-                        },
-                        x => {
-                            self.state = Operator;
-                            let tok = Token::Integer(self.stack.iter().collect::<String>().parse().unwrap());
-                            self.stack.clear();
-                            self.stack.push(x);
-                            return tok;
-                        }
-                    },
-                    Operator => match c {
-                        x if x.is_digit(10) => {
-                            self.state = Digit;
-                            let tok = Token::Operator(self.stack.pop().unwrap());
-                            self.stack.push(x);
-                            return tok;
-                        },
-                        x => {
-                            let tok = Token::Operator(self.stack.pop().unwrap());
-                            self.stack.push(x);
-                            return tok;
-                        }
-                    }
-                    End => return Token::End;
-                }
-            }
-            */
         }
     }
 }
