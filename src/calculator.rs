@@ -28,6 +28,8 @@ pub enum InterpreterState {
     Integer,
     Add,
     Subtract,
+    Multiply,
+    Divide,
     End,
 }
 
@@ -60,6 +62,8 @@ impl Interpreter {
             Integer => self.handle_integer(event),
             Add => self.handle_add(event),
             Subtract => self.handle_subtract(event),
+            Multiply => self.handle_multiply(event),
+            Divide => self.handle_divide(event),
             End => {
                 // Execution of expression ended, print the results
                 match self.stack.pop() {
@@ -91,6 +95,8 @@ impl Interpreter {
             Operator(op) => match op {
                 '+' => InterpreterState::Add,
                 '-' => InterpreterState::Subtract,
+                '*' => InterpreterState::Multiply,
+                '/' => InterpreterState::Divide,
                 _ => panic!("Invalid operator"),
             },
             End => InterpreterState::End,
@@ -118,6 +124,32 @@ impl Interpreter {
             Integer(d) => {
                 let a = self.stack.pop().unwrap();
                 self.stack.push(a-d);
+                InterpreterState::Integer
+            },
+            _ => panic!("Syntax error")
+        }
+    }
+
+    // Multiply state allows transition to `Integer` state
+    fn handle_multiply(&mut self, event: &Token) -> InterpreterState {
+        use Token::*;
+        match event {
+            Integer(d) => {
+                let a = self.stack.pop().unwrap();
+                self.stack.push(a*d);
+                InterpreterState::Integer
+            },
+            _ => panic!("Syntax error")
+        }
+    }
+
+    // Divide state allows transition to `Integer` state
+    fn handle_divide(&mut self, event: &Token) -> InterpreterState {
+        use Token::*;
+        match event {
+            Integer(d) => {
+                let a = self.stack.pop().unwrap();
+                self.stack.push(a/d);
                 InterpreterState::Integer
             },
             _ => panic!("Syntax error")
@@ -267,6 +299,30 @@ mod tests {
         let ns = interpreter.next(&Token::Integer(3));
         assert_enum_eq!(&ns, &InterpreterState::Integer);
         assert_eq!(interpreter.stack.pop().unwrap(), 5-3);
+    }
+
+    #[test]
+    fn test_multiply_state() {
+        // Multiply should transition to `Integer` state
+        let mut interpreter = Interpreter::new();
+        interpreter.state = interpreter.next(&Token::Integer(5));
+        interpreter.state = interpreter.next(&Token::Operator('*'));
+
+        let ns = interpreter.next(&Token::Integer(3));
+        assert_enum_eq!(&ns, &InterpreterState::Integer);
+        assert_eq!(interpreter.stack.pop().unwrap(), 5*3);
+    }
+
+    #[test]
+    fn test_divide_state() {
+        // Multiply should transition to `Integer` state
+        let mut interpreter = Interpreter::new();
+        interpreter.state = interpreter.next(&Token::Integer(5));
+        interpreter.state = interpreter.next(&Token::Operator('/'));
+
+        let ns = interpreter.next(&Token::Integer(3));
+        assert_enum_eq!(&ns, &InterpreterState::Integer);
+        assert_eq!(interpreter.stack.pop().unwrap(), 5/3);
     }
 
     #[test]
