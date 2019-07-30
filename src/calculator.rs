@@ -17,7 +17,7 @@ use std::vec::Vec;
 
 #[derive(Debug, PartialEq)]
 pub enum Token {
-    Integer(u32),
+    Integer(i32),
     Operator(char),
     End,
 }
@@ -27,12 +27,13 @@ pub enum InterpreterState {
     Start,
     Integer,
     Add,
+    Subtract,
     End,
 }
 
 pub struct Interpreter {
     pub state: InterpreterState,
-    pub stack: Vec<u32>,
+    pub stack: Vec<i32>,
 }
 
 impl Interpreter {
@@ -58,6 +59,7 @@ impl Interpreter {
             Start => self.handle_start(event),
             Integer => self.handle_integer(event),
             Add => self.handle_add(event),
+            Subtract => self.handle_subtract(event),
             End => {
                 // Execution of expression ended, print the results
                 match self.stack.pop() {
@@ -88,6 +90,7 @@ impl Interpreter {
         match event {
             Operator(op) => match op {
                 '+' => InterpreterState::Add,
+                '-' => InterpreterState::Subtract,
                 _ => panic!("Invalid operator"),
             },
             End => InterpreterState::End,
@@ -108,7 +111,18 @@ impl Interpreter {
         }
     }
 
-    // TODO: Implement subtraction operator
+    // Subtract state allows transition to `Integer` state
+    fn handle_subtract(&mut self, event: &Token) -> InterpreterState {
+        use Token::*;
+        match event {
+            Integer(d) => {
+                let a = self.stack.pop().unwrap();
+                self.stack.push(a-d);
+                InterpreterState::Integer
+            },
+            _ => panic!("Syntax error")
+        }
+    }
 }
 
 enum LexerState {
@@ -125,10 +139,11 @@ pub struct Lexer<'a> {
 
 impl Lexer<'_> {
     pub fn new(s: &str) -> Lexer {
+        // Stack contains '0' to make starting with operators a valid expression
         Lexer {
             state: LexerState::Digit,
             iter: s.chars(),
-            stack: Vec::new(),
+            stack: vec!['0'],
         }
     }
 
@@ -148,7 +163,8 @@ impl Lexer<'_> {
                         return tok;
                     },
                     End => return Token::End,
-                }
+                },
+                Some(c) if c == ' ' => {}, // Skip white space
                 Some(c) => match self.state {
                     Digit => {
                         self.state = Operator;
@@ -242,6 +258,18 @@ mod tests {
     }
 
     #[test]
+    fn test_subtract_state() {
+        // Subtract should transition to `Integer` state
+        let mut interpreter = Interpreter::new();
+        interpreter.state = interpreter.next(&Token::Integer(5));
+        interpreter.state = interpreter.next(&Token::Operator('-'));
+
+        let ns = interpreter.next(&Token::Integer(3));
+        assert_enum_eq!(&ns, &InterpreterState::Integer);
+        assert_eq!(interpreter.stack.pop().unwrap(), 5-3);
+    }
+
+    #[test]
     fn test_lexer() {
         let mut lexer = Lexer::new("5+123");
         assert_eq!(lexer.next_token(), Token::Integer(5));
@@ -263,6 +291,16 @@ mod tests {
         assert_eq!(lexer.next_token(), Token::End);
 
         lexer = Lexer::new("115+123+1");
+        assert_eq!(lexer.next_token(), Token::Integer(115));
+        assert_eq!(lexer.next_token(), Token::Operator('+'));
+        assert_eq!(lexer.next_token(), Token::Integer(123));
+        assert_eq!(lexer.next_token(), Token::Operator('+'));
+        assert_eq!(lexer.next_token(), Token::Integer(1));
+        assert_eq!(lexer.next_token(), Token::End);
+
+        lexer = Lexer::new("-115+123+1");
+        assert_eq!(lexer.next_token(), Token::Integer(0));
+        assert_eq!(lexer.next_token(), Token::Operator('-'));
         assert_eq!(lexer.next_token(), Token::Integer(115));
         assert_eq!(lexer.next_token(), Token::Operator('+'));
         assert_eq!(lexer.next_token(), Token::Integer(123));
