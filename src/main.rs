@@ -2,21 +2,19 @@ use std::io;
 use std::io::prelude::*;
 
 mod calculator;
+use calculator::parser::Parser;
+use calculator::lexer::Lexer;
 
 fn main() {
     let stdin = io::stdin();
-    let mut interpreter = calculator::Interpreter::new();
+    let mut parser = Parser::new();
     for line in stdin.lock().lines() {
         let s = line.unwrap();
-        let mut lexer = calculator::Lexer::new(&s);
-        interpreter.reset();
-        loop {
-            let tok = lexer.next_token();
-            interpreter.state = interpreter.next(&tok);
-            if tok == calculator::Token::End {
-                break;
-            }
+        let lexer = Lexer::new(&s);
+        parser.reset();
+        for tok in lexer {
+            parser.state = parser.next(&tok);
         }
-        println!("{:?}", interpreter.stack);
+        println!("{:?}", parser.stack);
     }
 }
