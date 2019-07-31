@@ -147,6 +147,7 @@ impl Interpreter {
     fn handle_divide(&mut self, event: &Token) -> InterpreterState {
         use Token::*;
         match event {
+            Integer(d) if *d == 0 => panic!("Unable to divide by zero"),
             Integer(d) => {
                 let a = self.stack.pop().unwrap();
                 self.stack.push(a/d);
@@ -314,6 +315,7 @@ mod tests {
     }
 
     #[test]
+    #[should_panic(expected = "Unable to divide by zero")]
     fn test_divide_state() {
         // Multiply should transition to `Integer` state
         let mut interpreter = Interpreter::new();
@@ -323,6 +325,11 @@ mod tests {
         let ns = interpreter.next(&Token::Integer(3));
         assert_enum_eq!(&ns, &InterpreterState::Integer);
         assert_eq!(interpreter.stack.pop().unwrap(), 5/3);
+
+        interpreter.reset();
+        interpreter.state = interpreter.next(&Token::Integer(1));
+        interpreter.state = interpreter.next(&Token::Operator('/'));
+        interpreter.state = interpreter.next(&Token::Integer(0));
     }
 
     #[test]
