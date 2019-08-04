@@ -160,6 +160,9 @@ mod tests {
 
         parser = Parser::new(Lexer::new("6/2+1"));
         assert_eq!(4, parser.expr());
+
+        parser = Parser::new(Lexer::new("7 + 3 * (10 / (12 / (3 + 1) - 1))"));
+        assert_eq!(22, parser.expr());
     }
 
 }
