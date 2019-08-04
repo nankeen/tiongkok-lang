@@ -1,5 +1,4 @@
-use std::vec::Vec;
-use crate::calculator::token::Token;
+use super::syn::Token;
 
 /*
  * integer: DIGIT+
