@@ -20,7 +20,7 @@ impl Lexer<'_> {
         Lexer {
             state: LexerState::Digit,
             iter: s.chars(),
-            stack: vec!['0'],
+            stack: Vec::new(),
         }
     }
 }
@@ -112,12 +112,12 @@ mod tests {
         assert_eq!(lexer.next().unwrap(), Token::Integer(1));
         assert_eq!(lexer.next(), None);
 
-        lexer = Lexer::new("-115+123+1");
-        assert_eq!(lexer.next().unwrap(), Token::Integer(0));
-        assert_eq!(lexer.next().unwrap(), Token::Operator('-'));
+        lexer = Lexer::new("(115+123)+1");
+        assert_eq!(lexer.next().unwrap(), Token::Operator('('));
         assert_eq!(lexer.next().unwrap(), Token::Integer(115));
         assert_eq!(lexer.next().unwrap(), Token::Operator('+'));
         assert_eq!(lexer.next().unwrap(), Token::Integer(123));
+        assert_eq!(lexer.next().unwrap(), Token::Operator(')'));
         assert_eq!(lexer.next().unwrap(), Token::Operator('+'));
         assert_eq!(lexer.next().unwrap(), Token::Integer(1));
         assert_eq!(lexer.next(), None);
