@@ -5,9 +5,8 @@ use super::lexer::Lexer;
 /*
  * Grammar:
  * expr: term((ADD|SUB)term)*
- * term: nest((MUL|DIV)nest)*
- * nest: factor|((OPEN)expr(CLOSE))
- * factor: INTEGER
+ * term: factor((MUL|DIV)factor)*
+ * factor: INTEGER|((OPEN)expr(CLOSE))
  */
 
 pub struct Parser<'a> {
@@ -44,24 +43,24 @@ impl Parser<'_> {
     }
 
     fn term(&mut self) -> i32 {
-        let mut result = self.nest();
+        let mut result = self.factor();
 
         loop {
             match self.cur {
                 Token::Operator('*') => {
                     self.consume_lexer(Token::Operator('*'));
-                    result *= self.nest();
+                    result *= self.factor();
                 },
                 Token::Operator('/') => {
                     self.consume_lexer(Token::Operator('/'));
-                    result /= self.nest();
+                    result /= self.factor();
                 },
                 _ => return result,
             }
         }
     }
 
-    fn nest(&mut self) -> i32 {
+    fn factor(&mut self) -> i32 {
         match self.cur {
             Token::Operator('(') => {
                 self.consume_lexer(Token::Operator('('));
@@ -69,12 +68,6 @@ impl Parser<'_> {
                 self.consume_lexer(Token::Operator(')'));
                 res
             },
-            _ => self.factor()
-        }
-    }
-
-    fn factor(&mut self) -> i32 {
-        match self.cur {
             Token::Integer(i) => {
                 self.consume_lexer(Token::Integer(0));
                 return i;
