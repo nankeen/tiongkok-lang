@@ -1,6 +1,6 @@
 pub mod parser;
 pub mod lexer;
-mod token;
+mod syn;
 
 // Runs with default radix 10
 // const RADIX: u32 = 10;

@@ -1,5 +1,5 @@
 use std::mem::discriminant;
-use super::token::Token;
+use super::syn::{Token, ASTNode};
 use super::lexer::Lexer;
 
 /*
@@ -24,43 +24,59 @@ impl Parser<'_> {
         }
     }
 
-    pub fn expr(&mut self) -> i32 {
-        let mut result = self.term();
+    pub fn expr(&mut self) -> ASTNode {
+        let mut left = self.term();
 
         loop {
             match self.cur {
                 Token::Operator('+') => {
                     self.consume_lexer(Token::Operator('+'));
-                    result += self.term();
+                    left = ASTNode::BinOp{
+                        left: Box::new(left),
+                        op: Token::Operator('+'),
+                        right: Box::new(self.factor()),
+                    }
                 },
                 Token::Operator('-') => {
                     self.consume_lexer(Token::Operator('-'));
-                    result -= self.term();
+                    left = ASTNode::BinOp{
+                        left: Box::new(left),
+                        op: Token::Operator('-'),
+                        right: Box::new(self.factor()),
+                    }
                 },
-                _ => return result,
+                _ => return left,
             }
         }
     }
 
-    fn term(&mut self) -> i32 {
-        let mut result = self.factor();
+    fn term(&mut self) -> ASTNode {
+        let mut left = self.factor();
 
         loop {
             match self.cur {
                 Token::Operator('*') => {
                     self.consume_lexer(Token::Operator('*'));
-                    result *= self.factor();
+                    left = ASTNode::BinOp{
+                        left: Box::new(left),
+                        op: Token::Operator('*'),
+                        right: Box::new(self.factor()),
+                    }
                 },
                 Token::Operator('/') => {
                     self.consume_lexer(Token::Operator('/'));
-                    result /= self.factor();
+                    left = ASTNode::BinOp{
+                        left: Box::new(left),
+                        op: Token::Operator('/'),
+                        right: Box::new(self.factor()),
+                    }
                 },
-                _ => return result,
+                _ => return left,
             }
         }
     }
 
-    fn factor(&mut self) -> i32 {
+    fn factor(&mut self) -> ASTNode {
         match self.cur {
             Token::Operator('(') => {
                 self.consume_lexer(Token::Operator('('));
@@ -70,7 +86,9 @@ impl Parser<'_> {
             },
             Token::Integer(i) => {
                 self.consume_lexer(Token::Integer(0));
-                return i;
+                return ASTNode::Num{
+                    value: i
+                };
             },
             _ => panic!("Syntax error"),
         }

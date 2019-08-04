@@ -10,7 +10,7 @@ fn main() {
     for line in stdin.lock().lines() {
         let s = line.unwrap();
         let lexer = Lexer::new(&s);
-        let mut parser = Parser::new(lexer);
-        println!("{:?}", parser.expr());
+        // let mut parser = Parser::new(lexer);
+        // println!("{:?}", parser.expr());
     }
 }
