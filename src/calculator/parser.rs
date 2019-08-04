@@ -158,7 +158,7 @@ mod tests {
         parser = Parser::new(Lexer::new("5+4*8"));
         assert_eq!(37, parser.expr());
 
-        parser = Parser::new(Lexer::new("-6/2+1"));
+        parser = Parser::new(Lexer::new("6/2+1"));
         assert_eq!(4, parser.expr());
     }
 

@@ -1,6 +1,11 @@
 use std::vec::Vec;
 use crate::calculator::token::Token;
 
+/*
+ * integer: DIGIT+
+ * operator: !DIGIT
+ */
+
 
 enum LexerState {
     Digit,
@@ -9,18 +14,17 @@ enum LexerState {
 }
 
 pub struct Lexer<'a> {
-    state: LexerState,
+    cur: Option<char>,
     iter: std::str::Chars<'a>,
-    stack: Vec<char>,
 }
 
 impl Lexer<'_> {
     pub fn new(s: &str) -> Lexer {
         // Stack contains '0' to make starting with operators a valid expression
+        let mut c = s.chars();
         Lexer {
-            state: LexerState::Digit,
-            iter: s.chars(),
-            stack: Vec::new(),
+            cur: c.next(), 
+            iter: c,
         }
     }
 }
@@ -28,51 +32,25 @@ impl Lexer<'_> {
 impl Iterator for Lexer<'_> {
     type Item = Token;
     fn next(&mut self) -> Option<Token> {
-        // TODO: Fix this crap, there must a better pattern
-        use LexerState::*;
+        let mut stack = String::new();
         loop {
-            match self.iter.next() {
-                Some(c) if c.is_digit(10) => match self.state {
-                    Digit => {
-                        self.stack.push(c);
-                    },
-                    Operator => {
-                        self.state = Digit;
-                        let tok = Token::Operator(self.stack.pop().unwrap());
-                        self.stack.push(c);
-                        return Some(tok);
-                    },
-                    End => return None,
+            match self.cur {
+                Some(' ') => { self.cur = self.iter.next() }, // Ignore whitespace
+                Some(c) if c.is_digit(10) => {
+                    // Digit
+                    stack.push(c);
+                    self.cur = self.iter.next();
                 },
-                Some(c) if c == ' ' => {}, // Skip white space
-                Some(c) => match self.state {
-                    Digit => {
-                        self.state = Operator;
-                        let tok = Token::Integer(self.stack.iter().collect::<String>().parse().unwrap());
-                        self.stack.clear();
-                        self.stack.push(c);
-                        return Some(tok);
-                    },
-                    Operator => {
-                        let tok = Token::Operator(self.stack.pop().unwrap());
-                        self.stack.push(c);
-                        return Some(tok);
-                    },
-                    End => return None,
-                }
-                None => match self.state {
-                    Digit => {
-                        self.state = End;
-                        let tok = Token::Integer(self.stack.iter().collect::<String>().parse().unwrap());
-                        self.stack.clear();
-                        return Some(tok);
-                    },
-                    Operator => {
-                        self.state = End;
-                        let tok = Token::Operator(self.stack.pop().unwrap());
-                        return Some(tok);
-                    },
-                    End => return None,
+                Some(c) if stack.is_empty() => {
+                    // Operator
+                    self.cur = self.iter.next();
+                    return Some(Token::Operator(c));
+                },
+                None if stack.is_empty() => return None,
+                _ => {
+                    // Return integer
+                    let tok = Token::Integer(stack.parse().unwrap());
+                    return Some(tok);
                 }
             }
         }
