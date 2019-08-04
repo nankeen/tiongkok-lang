@@ -5,7 +5,8 @@ use super::lexer::Lexer;
 /*
  * Grammar:
  * expr: term((ADD|SUB)term)*
- * term: factor((MUL|DIV)factor)*
+ * term: nest((MUL|DIV)nest)*
+ * nest: factor|((OPEN)expr(CLOSE))
  * factor: INTEGER
  */
 
@@ -28,8 +29,7 @@ impl Parser<'_> {
         let mut result = self.term();
 
         loop {
-            let tok = self.cur;
-            match tok {
+            match self.cur {
                 Token::Operator('+') => {
                     self.consume_lexer(Token::Operator('+'));
                     result += self.term();
@@ -44,21 +44,32 @@ impl Parser<'_> {
     }
 
     fn term(&mut self) -> i32 {
-        let mut result = self.factor();
+        let mut result = self.nest();
 
         loop {
-            let tok = self.cur;
-            match tok {
+            match self.cur {
                 Token::Operator('*') => {
                     self.consume_lexer(Token::Operator('*'));
-                    result *= self.factor();
+                    result *= self.nest();
                 },
                 Token::Operator('/') => {
                     self.consume_lexer(Token::Operator('/'));
-                    result /= self.factor();
+                    result /= self.nest();
                 },
                 _ => return result,
             }
+        }
+    }
+
+    fn nest(&mut self) -> i32 {
+        match self.cur {
+            Token::Operator('(') => {
+                self.consume_lexer(Token::Operator('('));
+                let res = self.expr();
+                self.consume_lexer(Token::Operator(')'));
+                res
+            },
+            _ => self.factor()
         }
     }
 
@@ -148,7 +159,7 @@ mod tests {
         assert_eq!(37, parser.expr());
 
         parser = Parser::new(Lexer::new("-6/2+1"));
-        assert_eq!(-2, parser.expr());
+        assert_eq!(4, parser.expr());
     }
 
 }
