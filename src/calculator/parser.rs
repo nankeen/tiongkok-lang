@@ -1,5 +1,6 @@
-use std::vec::Vec;
+use std::mem::discriminant;
 use super::token::Token;
+use super::lexer::Lexer;
 
 /*
  * Grammar:
@@ -8,128 +9,82 @@ use super::token::Token;
  * factor: INTEGER
  */
 
-#[derive(Debug)]
-pub enum ParserState {
-    Start,
-    Integer,
-    Add,
-    Sub,
-    Mul,
-    Div,
+pub struct Parser<'a> {
+    lexer: Lexer<'a>,
+    cur: Token,
 }
 
-pub struct Parser {
-    pub state: ParserState,
-    pub stack: Vec<i32>,
-}
-
-impl Parser {
+impl Parser<'_> {
     // Initializes a new interpreter with the start state
-    pub fn new() -> Parser {
+    pub fn new(mut lexer: Lexer) -> Parser {
+        let tok = lexer.next().unwrap();
         Parser {
-            state: ParserState::Start,
-            stack: Vec::new(),
+            lexer: lexer,
+            cur: tok,
         }
     }
 
-    // Resets interpreter internals
-    pub fn reset(&mut self) {
-        self.state = ParserState::Start;
-        self.stack.clear();
-    }
+    pub fn expr(&mut self) -> i32 {
+        let mut result = self.term();
 
-    // Given a token (event), transition to a new state
-    pub fn next(&mut self, event: &Token) -> ParserState {
-        use ParserState::*;
-        // Match current state with handler functions
-        match self.state {
-            Start => self.handle_start(event),
-            Integer => self.handle_integer(event),
-            Add => self.handle_add(event),
-            Sub => self.handle_subtract(event),
-            Mul => self.handle_multiply(event),
-            Div => self.handle_divide(event),
+        loop {
+            let tok = self.cur;
+            match tok {
+                Token::Operator('+') => {
+                    self.consume_lexer(Token::Operator('+'));
+                    result += self.term();
+                },
+                Token::Operator('-') => {
+                    self.consume_lexer(Token::Operator('-'));
+                    result -= self.term();
+                },
+                _ => return result,
+            }
         }
     }
 
-    // Start state allows transition to `Integer`
-    fn handle_start(&mut self, event: &Token) -> ParserState {
-        use Token::*;
-        match event {
-            Integer(d) => {
-                self.stack.push(*d);
-                ParserState::Integer
+    fn term(&mut self) -> i32 {
+        let mut result = self.factor();
+
+        loop {
+            let tok = self.cur;
+            match tok {
+                Token::Operator('*') => {
+                    self.consume_lexer(Token::Operator('*'));
+                    result *= self.factor();
+                },
+                Token::Operator('/') => {
+                    self.consume_lexer(Token::Operator('/'));
+                    result /= self.factor();
+                },
+                _ => return result,
+            }
+        }
+    }
+
+    fn factor(&mut self) -> i32 {
+        match self.cur {
+            Token::Integer(i) => {
+                self.consume_lexer(Token::Integer(0));
+                return i;
             },
             _ => panic!("Syntax error"),
         }
     }
 
-    // Integer state allows transition to `Add`
-    fn handle_integer(&mut self, event: &Token) -> ParserState {
-        use Token::*;
-        match event {
-            Operator(op) => match op {
-                '+' => ParserState::Add,
-                '-' => ParserState::Sub,
-                '*' => ParserState::Mul,
-                '/' => ParserState::Div,
-                _ => panic!("Invalid operator"),
-            },
-            _ => panic!("Syntax error"),
+    fn consume_lexer(&mut self, expect: Token) -> Token {
+        if discriminant(&self.cur) != discriminant(&expect) {
+            panic!("Unexpected token");
         }
-    }
 
-    // Add state allows transition to `Integer` state
-    fn handle_add(&mut self, event: &Token) -> ParserState {
-        use Token::*;
-        match event {
-            Integer(d) => {
-                let a = self.stack.pop().unwrap();
-                self.stack.push(a+d);
-                ParserState::Integer
-            },
-            _ => panic!("Syntax error")
-        }
-    }
+        let tok = self.cur;
 
-    // Sub state allows transition to `Integer` state
-    fn handle_subtract(&mut self, event: &Token) -> ParserState {
-        use Token::*;
-        match event {
-            Integer(d) => {
-                let a = self.stack.pop().unwrap();
-                self.stack.push(a-d);
-                ParserState::Integer
-            },
-            _ => panic!("Syntax error")
-        }
-    }
+        match self.lexer.next() {
+            Some(tok) => self.cur = tok,
+            None => return Token::End,
+        };
 
-    // Mul state allows transition to `Integer` state
-    fn handle_multiply(&mut self, event: &Token) -> ParserState {
-        use Token::*;
-        match event {
-            Integer(d) => {
-                let a = self.stack.pop().unwrap();
-                self.stack.push(a*d);
-                ParserState::Integer
-            },
-            _ => panic!("Syntax error")
-        }
-    }
-
-    // Div state allows transition to `Integer` state
-    fn handle_divide(&mut self, event: &Token) -> ParserState {
-        use Token::*;
-        match event {
-            Integer(d) if *d == 0 => panic!("Unable to divide by zero"),
-            Integer(d) => {
-                let a = self.stack.pop().unwrap();
-                self.stack.push(a/d);
-                ParserState::Integer
-            },
-            _ => panic!("Syntax error")
-        }
+        return tok;
     }
 }
 
@@ -137,7 +92,6 @@ impl Parser {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use std::mem::discriminant;
     
     macro_rules! assert_enum_eq {
         ($a:expr,$b:expr) => {
@@ -146,82 +100,55 @@ mod tests {
     }
 
     #[test]
+    fn test_factor_valid() {
+        let mut parser = Parser::new(Lexer::new("5"));
+
+        assert_eq!(5, parser.factor());
+    }
+
+    #[test]
     #[should_panic(expected = "Syntax error")]
-    fn test_start_state() {
-        // Start should transition to digit state
-        let mut interpreter = Parser::new();
-        let ns = interpreter.next(&Token::Integer(1));
-        assert_enum_eq!(&ns, &ParserState::Integer);
-
-        // Test invalid transition panic
-        interpreter.next(&Token::Operator('+'));
+    fn test_factor_invalid() {
+        let mut parser = Parser::new(Lexer::new("+"));
+        parser.factor();
+        parser.factor();
     }
 
     #[test]
-    #[should_panic(expected = "Invalid operator")]
-    fn test_integer_state() {
-        // Integer should transition to `Add` state
-        let mut interpreter = Parser::new();
-        interpreter.state = interpreter.next(&Token::Integer(1));
+    fn test_term_valid() {
+        let mut parser = Parser::new(Lexer::new("5*2"));
+        assert_eq!(10, parser.term());
 
-        let ns = interpreter.next(&Token::Operator('+'));
-        assert_enum_eq!(&ns, &ParserState::Add);
+        parser = Parser::new(Lexer::new("1 * 10"));
+        assert_eq!(10, parser.term());
 
-        // Test invalid operator panic
-        interpreter.next(&Token::Operator('>'));
+        parser = Parser::new(Lexer::new("3*6/2"));
+        assert_eq!(9, parser.term());
+
+        parser = Parser::new(Lexer::new("5/2"));
+        assert_eq!(2, parser.term());
     }
 
     #[test]
-    fn test_add_state() {
-        // Add should transition to `Integer` state
-        let mut interpreter = Parser::new();
-        interpreter.state = interpreter.next(&Token::Integer(5));
-        interpreter.state = interpreter.next(&Token::Operator('+'));
-
-        let ns = interpreter.next(&Token::Integer(3));
-        assert_enum_eq!(&ns, &ParserState::Integer);
-        assert_eq!(interpreter.stack.pop().unwrap(), 5+3);
+    #[should_panic(expected = "Syntax error")]
+    fn test_term_invalid() {
+        let mut parser = Parser::new(Lexer::new("5**2"));
+        parser.term();
     }
 
     #[test]
-    fn test_subtract_state() {
-        // Sub should transition to `Integer` state
-        let mut interpreter = Parser::new();
-        interpreter.state = interpreter.next(&Token::Integer(5));
-        interpreter.state = interpreter.next(&Token::Operator('-'));
+    fn test_expr_valid() {
+        let mut parser = Parser::new(Lexer::new("5+2"));
+        assert_eq!(7, parser.expr());
 
-        let ns = interpreter.next(&Token::Integer(3));
-        assert_enum_eq!(&ns, &ParserState::Integer);
-        assert_eq!(interpreter.stack.pop().unwrap(), 5-3);
+        parser = Parser::new(Lexer::new("2 * 10 -6"));
+        assert_eq!(14, parser.expr());
+
+        parser = Parser::new(Lexer::new("5+4*8"));
+        assert_eq!(37, parser.expr());
+
+        parser = Parser::new(Lexer::new("-6/2+1"));
+        assert_eq!(-2, parser.expr());
     }
 
-    #[test]
-    fn test_multiply_state() {
-        // Mul should transition to `Integer` state
-        let mut interpreter = Parser::new();
-        interpreter.state = interpreter.next(&Token::Integer(5));
-        interpreter.state = interpreter.next(&Token::Operator('*'));
-
-        let ns = interpreter.next(&Token::Integer(3));
-        assert_enum_eq!(&ns, &ParserState::Integer);
-        assert_eq!(interpreter.stack.pop().unwrap(), 5*3);
-    }
-
-    #[test]
-    #[should_panic(expected = "Unable to divide by zero")]
-    fn test_divide_state() {
-        // Mul should transition to `Integer` state
-        let mut interpreter = Parser::new();
-        interpreter.state = interpreter.next(&Token::Integer(5));
-        interpreter.state = interpreter.next(&Token::Operator('/'));
-
-        let ns = interpreter.next(&Token::Integer(3));
-        assert_enum_eq!(&ns, &ParserState::Integer);
-        assert_eq!(interpreter.stack.pop().unwrap(), 5/3);
-
-        interpreter.reset();
-        interpreter.state = interpreter.next(&Token::Integer(1));
-        interpreter.state = interpreter.next(&Token::Operator('/'));
-        interpreter.state = interpreter.next(&Token::Integer(0));
-    }
 }
