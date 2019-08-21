@@ -34,7 +34,7 @@ impl Parser<'_> {
                     left = ASTNode::BinOp{
                         left: Box::new(left),
                         op: Token::Operator('+'),
-                        right: Box::new(self.factor()),
+                        right: Box::new(self.term()),
                     }
                 },
                 Token::Operator('-') => {
@@ -42,7 +42,7 @@ impl Parser<'_> {
                     left = ASTNode::BinOp{
                         left: Box::new(left),
                         op: Token::Operator('-'),
-                        right: Box::new(self.factor()),
+                        right: Box::new(self.term()),
                     }
                 },
                 _ => return left,
@@ -86,9 +86,7 @@ impl Parser<'_> {
             },
             Token::Integer(i) => {
                 self.consume_lexer(Token::Integer(0));
-                return ASTNode::Num{
-                    value: i
-                };
+                return ASTNode::Num(i as i64);
             },
             _ => panic!("Syntax error"),
         }
@@ -114,18 +112,14 @@ impl Parser<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::calculator::syn::ASTNode::*;
+    use crate::calculator::syn::Token::Operator;
     
-    macro_rules! assert_enum_eq {
-        ($a:expr,$b:expr) => {
-            assert_eq!(discriminant($a), discriminant($b));
-        };
-    }
-
     #[test]
     fn test_factor_valid() {
         let mut parser = Parser::new(Lexer::new("5"));
 
-        assert_eq!(5, parser.factor());
+        assert_eq!(Num(5), parser.factor());
     }
 
     #[test]
@@ -133,22 +127,41 @@ mod tests {
     fn test_factor_invalid() {
         let mut parser = Parser::new(Lexer::new("+"));
         parser.factor();
-        parser.factor();
     }
 
     #[test]
     fn test_term_valid() {
         let mut parser = Parser::new(Lexer::new("5*2"));
-        assert_eq!(10, parser.term());
+        assert_eq!(BinOp{
+                left: Box::new(Num(5)),
+                op: Operator('*'),
+                right: Box::new(Num(2)),
+        }, parser.term());
 
         parser = Parser::new(Lexer::new("1 * 10"));
-        assert_eq!(10, parser.term());
+        assert_eq!(BinOp{
+                left: Box::new(Num(1)),
+                op: Operator('*'),
+                right: Box::new(Num(10)),
+        }, parser.term());
 
         parser = Parser::new(Lexer::new("3*6/2"));
-        assert_eq!(9, parser.term());
+        assert_eq!(BinOp{
+            left: Box::new(BinOp{
+                left: Box::new(Num(3)),
+                op: Operator('*'),
+                right: Box::new(Num(6)),
+            }),
+            op: Operator('/'),
+            right: Box::new(Num(2)),
+        }, parser.term());
 
         parser = Parser::new(Lexer::new("5/2"));
-        assert_eq!(2, parser.term());
+        assert_eq!(BinOp{
+                left: Box::new(Num(5)),
+                op: Operator('/'),
+                right: Box::new(Num(2)),
+        }, parser.term());
     }
 
     #[test]
@@ -161,19 +174,43 @@ mod tests {
     #[test]
     fn test_expr_valid() {
         let mut parser = Parser::new(Lexer::new("5+2"));
-        assert_eq!(7, parser.expr());
+        assert_eq!(BinOp{
+            left: Box::new(Num(5)),
+            op: Operator('+'),
+            right: Box::new(Num(2)),
+        }, parser.expr());
 
         parser = Parser::new(Lexer::new("2 * 10 -6"));
-        assert_eq!(14, parser.expr());
+        assert_eq!(BinOp{
+            left: Box::new(BinOp{
+                left: Box::new(Num(2)),
+                op: Operator('*'),
+                right: Box::new(Num(10)),
+            }),
+            op: Operator('-'),
+            right: Box::new(Num(6)),
+        }, parser.expr());
 
         parser = Parser::new(Lexer::new("5+4*8"));
-        assert_eq!(37, parser.expr());
+        assert_eq!(BinOp{
+            left: Box::new(Num(5)),
+            op: Operator('+'),
+            right: Box::new(BinOp{
+                left: Box::new(Num(4)),
+                op: Operator('*'),
+                right: Box::new(Num(8)),
+            }),
+        }, parser.expr());
 
-        parser = Parser::new(Lexer::new("6/2+1"));
-        assert_eq!(4, parser.expr());
-
-        parser = Parser::new(Lexer::new("7 + 3 * (10 / (12 / (3 + 1) - 1))"));
-        assert_eq!(22, parser.expr());
+        parser = Parser::new(Lexer::new("6/(2+1)"));
+        assert_eq!(BinOp{
+            left: Box::new(Num(6)),
+            op: Operator('/'),
+            right: Box::new(BinOp{
+                left: Box::new(Num(2)),
+                op: Operator('+'),
+                right: Box::new(Num(1)),
+            }),
+        }, parser.expr());
     }
-
 }
