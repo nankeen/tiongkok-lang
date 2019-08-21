@@ -5,13 +5,12 @@ pub enum Token {
     End
 }
 
+#[derive(Debug, PartialEq, Clone)]
 pub enum ASTNode {
     BinOp {
         left: Box<ASTNode>,
         op: Token,
         right: Box<ASTNode>,
     },
-    Num {
-        value: u64,
-    }
+    Num(i64),
 }
