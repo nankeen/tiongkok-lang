@@ -1,20 +1,6 @@
 use std::vec::Vec;
 use super::syn::{ASTNode, Token};
 
-/*
-pub struct Interpreter {
-    root: ASTNode,
-}
-
-impl Interpreter {
-    pub fn new(root: ASTNode) -> Interpreter {
-        Interpreter {
-            root: root,
-        }
-    }
-}
-*/
-
 pub fn visit(node: &ASTNode) -> i64 {
     match node {
         ASTNode::BinOp{left, op, right} => {

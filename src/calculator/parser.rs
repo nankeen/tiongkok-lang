@@ -248,4 +248,19 @@ mod tests {
             }),
         }, parser.expr());
     }
+
+    #[test]
+    fn test_unary_operator() {
+        let mut parser = Parser::new(Lexer::new("-3"));
+        assert_eq!(UnaryOp{
+            op: Operator('-'),
+            expr: Box::new(Num(3)),
+        }, parser.expr());
+
+        parser = Parser::new(Lexer::new("+3"));
+        assert_eq!(UnaryOp{
+            op: Operator('+'),
+            expr: Box::new(Num(3)),
+        }, parser.expr());
+    }
 }
