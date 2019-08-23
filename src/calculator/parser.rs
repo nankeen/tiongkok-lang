@@ -6,7 +6,7 @@ use super::lexer::Lexer;
  * Grammar:
  * expr: term((ADD|SUB)term)*
  * term: factor((MUL|DIV)factor)*
- * factor: INTEGER|((OPEN)expr(CLOSE))
+ * factor: (ADD|SUB)factor|INTEGER|((OPEN)expr(CLOSE))
  */
 
 pub struct Parser<'a> {
@@ -78,15 +78,34 @@ impl Parser<'_> {
 
     fn factor(&mut self) -> ASTNode {
         match self.cur {
+            // Handle unary operators
+            Token::Operator('+') => {
+                self.consume_lexer(Token::Operator('+'));
+                ASTNode::UnaryOp{
+                    op: Token::Operator('+'),
+                    expr: Box::new(self.factor()),
+                }
+            }
+            Token::Operator('-') => {
+                self.consume_lexer(Token::Operator('-'));
+                ASTNode::UnaryOp{
+                    op: Token::Operator('-'),
+                    expr: Box::new(self.factor()),
+                }
+            }
+
+            // Handle parentheses
             Token::Operator('(') => {
                 self.consume_lexer(Token::Operator('('));
                 let res = self.expr();
                 self.consume_lexer(Token::Operator(')'));
                 res
             },
+
+            // Just a number
             Token::Integer(i) => {
                 self.consume_lexer(Token::Integer(0));
-                return ASTNode::Num(i as i64);
+                ASTNode::Num(i as i64)
             },
             _ => panic!("Syntax error"),
         }
@@ -101,7 +120,10 @@ impl Parser<'_> {
 
         match self.lexer.next() {
             Some(tok) => self.cur = tok,
-            None => return Token::End,
+            None => {
+                self.cur = Token::End;
+                return Token::End
+            },
         };
 
         return tok;
@@ -120,6 +142,19 @@ mod tests {
         let mut parser = Parser::new(Lexer::new("5"));
 
         assert_eq!(Num(5), parser.factor());
+
+        parser = Parser::new(Lexer::new("-5"));
+        assert_eq!(UnaryOp{op: Operator('-'), expr: Box::new(Num(5))}, parser.factor());
+
+        parser = Parser::new(Lexer::new("+5"));
+        assert_eq!(UnaryOp{op: Operator('+'), expr: Box::new(Num(5))}, parser.factor());
+
+        parser = Parser::new(Lexer::new("+(5-2)"));
+        assert_eq!(UnaryOp{op: Operator('+'), expr: Box::new(BinOp{
+            left: Box::new(Num(5)),
+            op: Operator('-'),
+            right: Box::new(Num(2)),
+        })}, parser.factor());
     }
 
     #[test]

@@ -26,6 +26,13 @@ pub fn visit(node: &ASTNode) -> i64 {
                 _ => panic!("Invalid syntax found in AST"),
             }
         },
+        ASTNode::UnaryOp{op, expr} => {
+            match op {
+                Token::Operator('+') => visit(expr),
+                Token::Operator('-') => -visit(expr),
+                _ => panic!("Invalid syntax found in AST"),
+            }
+        }
         ASTNode::Num(i) => *i,
     }
 }
@@ -39,6 +46,7 @@ pub fn postfix_notation(node: &ASTNode) -> String {
             }
         },
         ASTNode::Num(i) => i.to_string(),
+        _ => panic!("Not implemented"),
     }
 }
 
@@ -51,5 +59,6 @@ pub fn lisp_notation(node: &ASTNode) -> String {
             }
         },
         ASTNode::Num(i) => i.to_string(),
+        _ => panic!("Not implemented"),
     }
 }
