@@ -12,5 +12,9 @@ pub enum ASTNode {
         op: Token,
         right: Box<ASTNode>,
     },
+    UnaryOp {
+        op: Token,
+        expr: Box<ASTNode>,
+    },
     Num(i64),
 }
