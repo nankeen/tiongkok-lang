@@ -4,19 +4,33 @@ use super::lexer::Lexer;
 
 /*
  * Grammar:
+ * program: compound_statement
+ * compound_statement: LCBRAC statement_list RCBRAC
+ * statement_list: statement
+ *               | statement SEMI statement_list
+ * statement: compound_statement
+ *          | assignment_statement
+ *          | empty
+ * assignment_statement: variable ASSIGN expr
+ * empty: 
+ *
  * expr: term((ADD|SUB)term)*
  * term: factor((MUL|DIV)factor)*
- * factor: (ADD|SUB)factor|INTEGER|((OPEN)expr(CLOSE))
+ * factor: (ADD|SUB)factor
+ *       | INTEGER
+ *       | LPAREN expr RPAREN
+ *       | variable
+ * variable: IDENTIFIER
  */
 
-pub struct Parser<'a> {
-    lexer: Lexer<'a>,
+pub struct Parser <I: Iterator<Item=char>>{
+    lexer: Lexer<I>,
     cur: Token,
 }
 
-impl Parser<'_> {
+impl<I: Iterator<Item=char>> Parser<I>{
     // Initializes a new interpreter with the start state
-    pub fn new(mut lexer: Lexer) -> Parser {
+    pub fn new(mut lexer: Lexer<I>) -> Parser<I> {
         let tok = lexer.next().unwrap();
         Parser {
             lexer: lexer,
@@ -29,19 +43,19 @@ impl Parser<'_> {
 
         loop {
             match self.cur {
-                Token::Operator('+') => {
-                    self.consume_lexer(Token::Operator('+'));
+                Token::Add => {
+                    self.consume_lexer(Token::Add);
                     left = ASTNode::BinOp{
                         left: Box::new(left),
-                        op: Token::Operator('+'),
+                        op: Token::Add,
                         right: Box::new(self.term()),
                     }
                 },
-                Token::Operator('-') => {
-                    self.consume_lexer(Token::Operator('-'));
+                Token::Sub => {
+                    self.consume_lexer(Token::Sub);
                     left = ASTNode::BinOp{
                         left: Box::new(left),
-                        op: Token::Operator('-'),
+                        op: Token::Sub,
                         right: Box::new(self.term()),
                     }
                 },
@@ -55,19 +69,19 @@ impl Parser<'_> {
 
         loop {
             match self.cur {
-                Token::Operator('*') => {
-                    self.consume_lexer(Token::Operator('*'));
+                Token::Mul => {
+                    self.consume_lexer(Token::Mul);
                     left = ASTNode::BinOp{
                         left: Box::new(left),
-                        op: Token::Operator('*'),
+                        op: Token::Mul,
                         right: Box::new(self.factor()),
                     }
                 },
-                Token::Operator('/') => {
-                    self.consume_lexer(Token::Operator('/'));
+                Token::Div => {
+                    self.consume_lexer(Token::Div);
                     left = ASTNode::BinOp{
                         left: Box::new(left),
-                        op: Token::Operator('/'),
+                        op: Token::Div,
                         right: Box::new(self.factor()),
                     }
                 },
@@ -79,26 +93,26 @@ impl Parser<'_> {
     fn factor(&mut self) -> ASTNode {
         match self.cur {
             // Handle unary operators
-            Token::Operator('+') => {
-                self.consume_lexer(Token::Operator('+'));
+            Token::Add => {
+                self.consume_lexer(Token::Add);
                 ASTNode::UnaryOp{
-                    op: Token::Operator('+'),
+                    op: Token::Add,
                     expr: Box::new(self.factor()),
                 }
             }
-            Token::Operator('-') => {
-                self.consume_lexer(Token::Operator('-'));
+            Token::Sub => {
+                self.consume_lexer(Token::Sub);
                 ASTNode::UnaryOp{
-                    op: Token::Operator('-'),
+                    op: Token::Sub,
                     expr: Box::new(self.factor()),
                 }
             }
 
             // Handle parentheses
-            Token::Operator('(') => {
-                self.consume_lexer(Token::Operator('('));
+            Token::LParen => {
+                self.consume_lexer(Token::LParen);
                 let res = self.expr();
-                self.consume_lexer(Token::Operator(')'));
+                self.consume_lexer(Token::RParen);
                 res
             },
 
@@ -116,13 +130,13 @@ impl Parser<'_> {
             panic!("Unexpected token");
         }
 
-        let tok = self.cur;
+        let tok = self.cur.clone();
 
         match self.lexer.next() {
             Some(tok) => self.cur = tok,
             None => {
-                self.cur = Token::End;
-                return Token::End
+                self.cur = Token::EOF;
+                return Token::EOF;
             },
         };
 
@@ -134,25 +148,25 @@ impl Parser<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::calculator::syn::ASTNode::*;
-    use crate::calculator::syn::Token::Operator;
+    use crate::language::syn::ASTNode::*;
+    use crate::language::syn::Token::*;
     
     #[test]
     fn test_factor_valid() {
-        let mut parser = Parser::new(Lexer::new("5"));
+        let mut parser = Parser::new(Lexer::new("5".chars()));
 
         assert_eq!(Num(5), parser.factor());
 
-        parser = Parser::new(Lexer::new("-5"));
-        assert_eq!(UnaryOp{op: Operator('-'), expr: Box::new(Num(5))}, parser.factor());
+        parser = Parser::new(Lexer::new("-5".chars()));
+        assert_eq!(UnaryOp{op: Sub, expr: Box::new(Num(5))}, parser.factor());
 
-        parser = Parser::new(Lexer::new("+5"));
-        assert_eq!(UnaryOp{op: Operator('+'), expr: Box::new(Num(5))}, parser.factor());
+        parser = Parser::new(Lexer::new("+5".chars()));
+        assert_eq!(UnaryOp{op: Add, expr: Box::new(Num(5))}, parser.factor());
 
-        parser = Parser::new(Lexer::new("+(5-2)"));
-        assert_eq!(UnaryOp{op: Operator('+'), expr: Box::new(BinOp{
+        parser = Parser::new(Lexer::new("+(5-2)".chars()));
+        assert_eq!(UnaryOp{op: Add, expr: Box::new(BinOp{
             left: Box::new(Num(5)),
-            op: Operator('-'),
+            op: Sub,
             right: Box::new(Num(2)),
         })}, parser.factor());
     }
@@ -160,41 +174,41 @@ mod tests {
     #[test]
     #[should_panic(expected = "Syntax error")]
     fn test_factor_invalid() {
-        let mut parser = Parser::new(Lexer::new("+"));
+        let mut parser = Parser::new(Lexer::new("+".chars()));
         parser.factor();
     }
 
     #[test]
     fn test_term_valid() {
-        let mut parser = Parser::new(Lexer::new("5*2"));
+        let mut parser = Parser::new(Lexer::new("5*2".chars()));
         assert_eq!(BinOp{
                 left: Box::new(Num(5)),
-                op: Operator('*'),
+                op: Mul,
                 right: Box::new(Num(2)),
         }, parser.term());
 
-        parser = Parser::new(Lexer::new("1 * 10"));
+        parser = Parser::new(Lexer::new("1 * 10".chars()));
         assert_eq!(BinOp{
                 left: Box::new(Num(1)),
-                op: Operator('*'),
+                op: Mul,
                 right: Box::new(Num(10)),
         }, parser.term());
 
-        parser = Parser::new(Lexer::new("3*6/2"));
+        parser = Parser::new(Lexer::new("3*6/2".chars()));
         assert_eq!(BinOp{
             left: Box::new(BinOp{
                 left: Box::new(Num(3)),
-                op: Operator('*'),
+                op: Mul,
                 right: Box::new(Num(6)),
             }),
-            op: Operator('/'),
+            op: Div,
             right: Box::new(Num(2)),
         }, parser.term());
 
-        parser = Parser::new(Lexer::new("5/2"));
+        parser = Parser::new(Lexer::new("5/2".chars()));
         assert_eq!(BinOp{
                 left: Box::new(Num(5)),
-                op: Operator('/'),
+                op: Div,
                 right: Box::new(Num(2)),
         }, parser.term());
     }
@@ -202,48 +216,48 @@ mod tests {
     #[test]
     #[should_panic(expected = "Syntax error")]
     fn test_term_invalid() {
-        let mut parser = Parser::new(Lexer::new("5**2"));
+        let mut parser = Parser::new(Lexer::new("5**2".chars()));
         parser.term();
     }
 
     #[test]
     fn test_expr_valid() {
-        let mut parser = Parser::new(Lexer::new("5+2"));
+        let mut parser = Parser::new(Lexer::new("5+2".chars()));
         assert_eq!(BinOp{
             left: Box::new(Num(5)),
-            op: Operator('+'),
+            op: Add,
             right: Box::new(Num(2)),
         }, parser.expr());
 
-        parser = Parser::new(Lexer::new("2 * 10 -6"));
+        parser = Parser::new(Lexer::new("2 * 10 -6".chars()));
         assert_eq!(BinOp{
             left: Box::new(BinOp{
                 left: Box::new(Num(2)),
-                op: Operator('*'),
+                op: Mul,
                 right: Box::new(Num(10)),
             }),
-            op: Operator('-'),
+            op: Sub,
             right: Box::new(Num(6)),
         }, parser.expr());
 
-        parser = Parser::new(Lexer::new("5+4*8"));
+        parser = Parser::new(Lexer::new("5+4*8".chars()));
         assert_eq!(BinOp{
             left: Box::new(Num(5)),
-            op: Operator('+'),
+            op: Add,
             right: Box::new(BinOp{
                 left: Box::new(Num(4)),
-                op: Operator('*'),
+                op: Mul,
                 right: Box::new(Num(8)),
             }),
         }, parser.expr());
 
-        parser = Parser::new(Lexer::new("6/(2+1)"));
+        parser = Parser::new(Lexer::new("6/(2+1)".chars()));
         assert_eq!(BinOp{
             left: Box::new(Num(6)),
-            op: Operator('/'),
+            op: Div,
             right: Box::new(BinOp{
                 left: Box::new(Num(2)),
-                op: Operator('+'),
+                op: Add,
                 right: Box::new(Num(1)),
             }),
         }, parser.expr());
@@ -251,15 +265,15 @@ mod tests {
 
     #[test]
     fn test_unary_operator() {
-        let mut parser = Parser::new(Lexer::new("-3"));
+        let mut parser = Parser::new(Lexer::new("-3".chars()));
         assert_eq!(UnaryOp{
-            op: Operator('-'),
+            op: Sub,
             expr: Box::new(Num(3)),
         }, parser.expr());
 
-        parser = Parser::new(Lexer::new("+3"));
+        parser = Parser::new(Lexer::new("+3".chars()));
         assert_eq!(UnaryOp{
-            op: Operator('+'),
+            op: Add,
             expr: Box::new(Num(3)),
         }, parser.expr());
     }

@@ -1,8 +1,20 @@
-#[derive(Debug, PartialEq, Clone, Copy)]
+#[derive(Debug, Eq, PartialEq, Clone)]
 pub enum Token {
     Integer(u64),
-    Operator(char),
-    End
+    Id(String),
+
+    // +, -, *, /, (, ), {, }, :=
+    Add,
+    Sub,
+    Mul,
+    Div,
+    LParen,
+    RParen,
+    LCBrac,
+    RCBrac, 
+    Assign,
+
+    EOF
 }
 
 #[derive(Debug, PartialEq, Clone)]
