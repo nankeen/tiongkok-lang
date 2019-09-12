@@ -12,7 +12,7 @@ fn main() {
         let s = line.unwrap();
         let lexer = Lexer::new(s.chars());
         let mut parser = Parser::new(lexer);
-        println!("{:?}", interpreter::visit(&parser.expr()));
+        println!("{:?}", interpreter::visit(&parser.parse()));
         // println!("{:?}", interpreter::postfix_notation(&parser.expr()));
         // println!("{}", interpreter::lisp_notation(&parser.expr()));
     }

@@ -9,9 +9,9 @@ use super::lexer::Lexer;
  * statement_list: statement
  *               | statement SEMI statement_list
  * statement: compound_statement
- *          | assignment_statement
+ *          | assign_statement
  *          | empty
- * assignment_statement: variable ASSIGN expr
+ * assign_statement: variable ASSIGN expr
  * empty: 
  *
  * expr: term((ADD|SUB)term)*
@@ -38,7 +38,94 @@ impl<I: Iterator<Item=char>> Parser<I>{
         }
     }
 
-    pub fn expr(&mut self) -> ASTNode {
+    pub fn parse(&mut self) -> ASTNode {
+        let node = self.program();
+        if let Token::EOF = self.cur {
+            return node;
+        }
+        panic!("Expected EOF")
+    }
+
+    fn program(&mut self) -> ASTNode {
+        self.compound_statement()
+    }
+
+    /*
+     * Compound statement grammar
+     * compound_statement: LCBRAC statement_list RCBRAC
+     */
+    fn compound_statement(&mut self) -> ASTNode {
+
+        // Get children from statement list
+        self.consume_lexer(Token::LCBrac);
+        let children = self.statement_list();
+        self.consume_lexer(Token::RCBrac);
+
+        // Return Compound node
+        ASTNode::Compound{
+            children: children
+        }
+    }
+
+    /*
+     * Statement list grammar
+     * statement_list: statement
+     *               | statement SEMI statement_list
+     */
+    fn statement_list(&mut self) -> Vec<ASTNode> {
+        let mut results = vec![self.statement()];
+        while let Token::Semi = self.cur {
+            self.consume_lexer(Token::Semi);
+            results.push(self.statement());
+        }
+        return results;
+    }
+
+    /*
+     * Statement grammar
+     * statement: compound_statement
+     *          | assign_statement
+     *          | empty
+     */
+    fn statement(&mut self) -> ASTNode {
+        match self.cur {
+            Token::LCBrac => self.compound_statement(),
+            Token::Id(_) => self.assign_statement(),
+            _ => self.empty(),
+        }
+    }
+
+    /*
+     * Assign grammar
+     * assign_statement: variable ASSIGN expr
+     */
+    fn assign_statement(&mut self) -> ASTNode {
+        let left = self.variable();
+        self.consume_lexer(Token::Assign);
+        ASTNode::Assign {
+            left: Box::new(left),
+            right: Box::new(self.expr()),
+        }
+    }
+
+    /*
+     * variable: IDENTIFIER
+     */
+    fn variable(&mut self) -> ASTNode {
+        ASTNode::Var {
+            token: self.consume_lexer(Token::Id("Id".to_owned())),
+        }
+    }
+
+    fn empty(&mut self) -> ASTNode {
+        ASTNode::NoOp
+    }
+
+    /*
+     * Expression grammar
+     * expr: term((ADD|SUB)term)*
+     */
+    fn expr(&mut self) -> ASTNode {
         let mut left = self.term();
 
         loop {
@@ -64,6 +151,10 @@ impl<I: Iterator<Item=char>> Parser<I>{
         }
     }
 
+    /*
+     * Term grammar
+     * term: factor((MUL|DIV)factor)*
+     */
     fn term(&mut self) -> ASTNode {
         let mut left = self.factor();
 
@@ -90,8 +181,15 @@ impl<I: Iterator<Item=char>> Parser<I>{
         }
     }
 
+    /*
+     * Factor grammar
+     * factor: (ADD|SUB)factor
+     *       | INTEGER
+     *       | LPAREN expr RPAREN
+     *       | variable
+     */
     fn factor(&mut self) -> ASTNode {
-        match self.cur {
+        match self.cur.clone() {
             // Handle unary operators
             Token::Add => {
                 self.consume_lexer(Token::Add);
@@ -121,10 +219,16 @@ impl<I: Iterator<Item=char>> Parser<I>{
                 self.consume_lexer(Token::Integer(0));
                 ASTNode::Num(i as i64)
             },
+            Token::Id(id) => {
+                ASTNode::Var {
+                    token: Token::Id(id),
+                }
+            }
             _ => panic!("Syntax error"),
         }
     }
 
+    // Helper function to check for the correct token
     fn consume_lexer(&mut self, expect: Token) -> Token {
         if discriminant(&self.cur) != discriminant(&expect) {
             panic!("Unexpected token");

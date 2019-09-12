@@ -51,6 +51,7 @@ impl<I: Iterator<Item=char>> Iterator for Lexer<I> {
             Some(')') => Some(Token::RParen),
             Some('{') => Some(Token::LCBrac),
             Some('}') => Some(Token::RCBrac),
+            Some(';') => Some(Token::Semi),
             Some(':') => {
                 match self.iter.peek() {
                     Some('=') => {

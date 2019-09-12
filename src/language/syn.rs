@@ -3,7 +3,7 @@ pub enum Token {
     Integer(u64),
     Id(String),
 
-    // +, -, *, /, (, ), {, }, :=
+    // +, -, *, /, (, ), {, }, :=, ;
     Add,
     Sub,
     Mul,
@@ -13,6 +13,7 @@ pub enum Token {
     LCBrac,
     RCBrac, 
     Assign,
+    Semi,
 
     EOF
 }
@@ -28,5 +29,16 @@ pub enum ASTNode {
         op: Token,
         expr: Box<ASTNode>,
     },
+    Compound {
+        children: Vec<ASTNode>,
+    },
+    Assign {
+        left: Box<ASTNode>,
+        right: Box<ASTNode>
+    },
+    Var {
+        token: Token,
+    },
     Num(i64),
+    NoOp,
 }
