@@ -2,7 +2,7 @@ use super::syn::Token;
 
 /*
  * integer: DIGIT+
- * operator: !DIGIT
+ * operator: !DIGIT|MULTIPLY|DIVIDE|MINUS|PLUS
  */
 
 
@@ -32,9 +32,13 @@ impl Iterator for Lexer<'_> {
     type Item = Token;
     fn next(&mut self) -> Option<Token> {
         let mut stack = String::new();
+        let mut alpha_stack = String::new();
         loop {
             match self.cur {
-                Some(' ') => { self.cur = self.iter.next() }, // Ignore whitespace
+                Some(' ') => {
+                    // Ignore whitespace
+                    self.cur = self.iter.next();
+                },
                 Some(c) if c.is_digit(10) => {
                     // Digit
                     stack.push(c);
@@ -42,8 +46,21 @@ impl Iterator for Lexer<'_> {
                 },
                 Some(c) if stack.is_empty() => {
                     // Operator
-                    self.cur = self.iter.next();
-                    return Some(Token::Operator(c));
+                    if c.is_alphabetic() {
+                        alpha_stack.push(c);
+                        self.cur = self.iter.next();
+
+                        match alpha_stack.to_ascii_lowercase().as_ref() {
+                            "plus" => return Some(Token::Operator('+')),
+                            "minue" => return Some(Token::Operator('-')),
+                            "times" => return Some(Token::Operator('*')),
+                            "divide" => return Some(Token::Operator('/')),
+                            _ => {},
+                        };
+                    } else {
+                        self.cur = self.iter.next();
+                        return Some(Token::Operator(c));
+                    }
                 },
                 None if stack.is_empty() => return None,
                 _ => {
